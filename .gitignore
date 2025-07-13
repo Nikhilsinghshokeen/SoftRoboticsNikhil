@@ -27,6 +27,8 @@ env/
 ENV/
 env.bak/
 venv.bak/
+hand_tracking_env/
+.venv/
 
 # IDE
 .vscode/
@@ -60,4 +62,7 @@ Thumbs.db
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+
+# Test files (uncomment if you don't want to include test files)
+# test_camera.py 
