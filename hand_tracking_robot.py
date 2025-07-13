@@ -8,7 +8,7 @@ import threading
 from collections import deque
 
 class HandTrackingRobot:
-    def __init__(self, port='/dev/ttyACM0', baud_rate=115200, camera_index=0):
+    def __init__(self, port='/dev/ttyACM0', baud_rate=115200, camera_index=8):
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         
@@ -156,16 +156,36 @@ class HandTrackingRobot:
         servo_angle = np.interp(distance, [min_dist, max_dist], [0, 180])
         return int(np.clip(servo_angle, 0, 180))
 
-    def send_to_arduino(self, servo_values):
+    def map_angle(self, angle, min_angle, max_angle):
+        # Clamp and map the angle from [min_angle, max_angle] to [min_angle, max_angle]
+        # (identity if in range, but clamps if out of range)
+        return int(np.clip(angle, min_angle, max_angle))
+
+    def send_to_arduino(self, angles):
         if not self.arduino_connected or not self.arduino:
             return
-        
+
         current_time = time.time()
         if current_time - self.last_send_time < self.send_interval:
             return
-        
+
         try:
-            data = f"T:{servo_values['thumb']},I:{servo_values['index']},M:{servo_values['middle']},R:{servo_values['ring']},P:{servo_values['pinky']}\n"
+            # Map MCP angles to servo range (0-180) with expanded input ranges
+            # This will make all motors move more responsively
+            thumb_mcp = int(np.interp(angles['thumb']['MCP'], [100, 180], [0, 180])) if 'thumb' in angles and 'MCP' in angles['thumb'] else 90
+            index_mcp = int(np.interp(angles['index']['MCP'], [120, 180], [0, 180])) if 'index' in angles and 'MCP' in angles['index'] else 90
+            middle_mcp = int(np.interp(angles['middle']['MCP'], [80, 180], [0, 180])) if 'middle' in angles and 'MCP' in angles['middle'] else 90
+            ring_mcp = int(np.interp(angles['ring']['MCP'], [100, 180], [0, 180])) if 'ring' in angles and 'MCP' in angles['ring'] else 90
+            pinky_mcp = int(np.interp(angles['pinky']['MCP'], [100, 180], [0, 180])) if 'pinky' in angles and 'MCP' in angles['pinky'] else 90
+            
+            # Clamp values to servo range
+            thumb_mcp = np.clip(thumb_mcp, 0, 180)
+            index_mcp = np.clip(index_mcp, 0, 180)
+            middle_mcp = np.clip(middle_mcp, 0, 180)
+            ring_mcp = np.clip(ring_mcp, 0, 180)
+            pinky_mcp = np.clip(pinky_mcp, 0, 180)
+            
+            data = f"T:{thumb_mcp} I:{index_mcp} M:{middle_mcp} R:{ring_mcp} P:{pinky_mcp}\n"
             self.arduino.write(data.encode())
             self.arduino.flush()
             self.last_send_time = current_time
@@ -190,20 +210,12 @@ class HandTrackingRobot:
         cv2.circle(frame, tuple(pinky_tip), 10, (255, 0, 255), -1)
         
         y_pos = 30
-        for finger, (distance, servo) in zip(['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'], 
-                                           zip(distances.values(), servo_values.values())):
-            cv2.putText(frame, f"{finger}: {servo}°", (10, y_pos), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            y_pos += 25
-        
-        # Display joint angles if provided
         if angles:
-            y_pos += 10
             for finger, joints in angles.items():
-                for joint, angle in joints.items():
-                    cv2.putText(frame, f"{finger} {joint}: {angle:.1f}°", (10, y_pos),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-                    y_pos += 18
+                text = f"{finger.capitalize()}: "
+                text += ", ".join([f"{joint}: {int(angle)}" for joint, angle in joints.items() if not np.isnan(angle)])
+                cv2.putText(frame, text, (10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+                y_pos += 25
 
     def run(self):
         if not self.cap or not self.cap.isOpened():
@@ -225,98 +237,51 @@ class HandTrackingRobot:
             
             if results.multi_hand_landmarks:
                 for hand_landmarks in results.multi_hand_landmarks:
-                    self.mp_drawing.draw_landmarks(
-                        frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS
-                    )
-                    
                     distances, lm_list = self.get_hand_gesture(hand_landmarks, frame.shape)
-                    
-                    if distances:
-                        # Calculate angles again for display
-                        h, w, _ = frame.shape
-                        lm_list_display = []
-                        for lm in hand_landmarks.landmark:
-                            cx, cy = int(lm.x * w), int(lm.y * h)
-                            lm_list_display.append([cx, cy])
-                        if len(lm_list_display) == 21:
-                            wrist = lm_list_display[0]
-                            thumb_cmc = lm_list_display[1]
-                            thumb_mcp = lm_list_display[2]
-                            thumb_ip = lm_list_display[3]
-                            thumb_tip = lm_list_display[4]
-                            index_mcp = lm_list_display[5]
-                            index_pip = lm_list_display[6]
-                            index_dip = lm_list_display[7]
-                            index_tip = lm_list_display[8]
-                            middle_mcp = lm_list_display[9]
-                            middle_pip = lm_list_display[10]
-                            middle_dip = lm_list_display[11]
-                            middle_tip = lm_list_display[12]
-                            ring_mcp = lm_list_display[13]
-                            ring_pip = lm_list_display[14]
-                            ring_dip = lm_list_display[15]
-                            ring_tip = lm_list_display[16]
-                            pinky_mcp = lm_list_display[17]
-                            pinky_pip = lm_list_display[18]
-                            pinky_dip = lm_list_display[19]
-                            pinky_tip = lm_list_display[20]
-                            angles = {
-                                'thumb': {
-                                    'MCP': self.calculate_angle(thumb_cmc, thumb_mcp, thumb_ip),
-                                    'IP': self.calculate_angle(thumb_mcp, thumb_ip, thumb_tip)
-                                },
-                                'index': {
-                                    'MCP': self.calculate_angle(wrist, index_mcp, index_pip),
-                                    'PIP': self.calculate_angle(index_mcp, index_pip, index_dip),
-                                    'DIP': self.calculate_angle(index_pip, index_dip, index_tip)
-                                },
-                                'middle': {
-                                    'MCP': self.calculate_angle(wrist, middle_mcp, middle_pip),
-                                    'PIP': self.calculate_angle(middle_mcp, middle_pip, middle_dip),
-                                    'DIP': self.calculate_angle(middle_pip, middle_dip, middle_tip)
-                                },
-                                'ring': {
-                                    'MCP': self.calculate_angle(wrist, ring_mcp, ring_pip),
-                                    'PIP': self.calculate_angle(ring_mcp, ring_pip, ring_dip),
-                                    'DIP': self.calculate_angle(ring_pip, ring_dip, ring_tip)
-                                },
-                                'pinky': {
-                                    'MCP': self.calculate_angle(wrist, pinky_mcp, pinky_pip),
-                                    'PIP': self.calculate_angle(pinky_mcp, pinky_pip, pinky_dip),
-                                    'DIP': self.calculate_angle(pinky_pip, pinky_dip, pinky_tip)
-                                }
+                    if distances is not None and lm_list:
+                        # Calculate joint angles for all fingers
+                        angles = {
+                            'thumb': {
+                                'MCP': self.calculate_angle(lm_list[1], lm_list[2], lm_list[3]),
+                                'IP': self.calculate_angle(lm_list[2], lm_list[3], lm_list[4])
+                            },
+                            'index': {
+                                'MCP': self.calculate_angle(lm_list[0], lm_list[5], lm_list[6]),
+                                'PIP': self.calculate_angle(lm_list[5], lm_list[6], lm_list[7]),
+                                'DIP': self.calculate_angle(lm_list[6], lm_list[7], lm_list[8])
+                            },
+                            'middle': {
+                                'MCP': self.calculate_angle(lm_list[0], lm_list[9], lm_list[10]),
+                                'PIP': self.calculate_angle(lm_list[9], lm_list[10], lm_list[11]),
+                                'DIP': self.calculate_angle(lm_list[10], lm_list[11], lm_list[12])
+                            },
+                            'ring': {
+                                'MCP': self.calculate_angle(lm_list[0], lm_list[13], lm_list[14]),
+                                'PIP': self.calculate_angle(lm_list[13], lm_list[14], lm_list[15]),
+                                'DIP': self.calculate_angle(lm_list[14], lm_list[15], lm_list[16])
+                            },
+                            'pinky': {
+                                'MCP': self.calculate_angle(lm_list[0], lm_list[17], lm_list[18]),
+                                'PIP': self.calculate_angle(lm_list[17], lm_list[18], lm_list[19]),
+                                'DIP': self.calculate_angle(lm_list[18], lm_list[19], lm_list[20])
                             }
-                        else:
-                            angles = None
-                        servo_values = {
-                            'thumb': self.map_distance_to_servo(distances['thumb']),
-                            'index': self.map_distance_to_servo(distances['index']),
-                            'middle': self.map_distance_to_servo(distances['middle']),
-                            'ring': self.map_distance_to_servo(distances['ring']),
-                            'pinky': self.map_distance_to_servo(distances['pinky'])
                         }
-                        
-                        with self.lock:
-                            self.send_to_arduino(servo_values)
-                            self.draw_hand_info(frame, distances, servo_values, lm_list, angles)
-            else:
-                cv2.putText(frame, "No hand detected", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                        # Draw MediaPipe landmarks and connections
+                        self.mp_drawing.draw_landmarks(
+                            frame,
+                            hand_landmarks,
+                            self.mp_hands.HAND_CONNECTIONS
+                        )
+                        self.draw_hand_info(frame, distances, None, lm_list, angles)
+                        self.send_to_arduino(angles)
             
             cv2.imshow('Hand Tracking Robot', frame)
-            
             if cv2.waitKey(1) & 0xFF == ord('q'):
+                self.running = False
                 break
         
-        self.cleanup()
-
-    def cleanup(self):
-        self.running = False
-        if self.cap and self.cap.isOpened():
-            self.cap.release()
+        self.cap.release()
         cv2.destroyAllWindows()
-        if self.arduino and self.arduino_connected:
-            self.arduino.close()
         print("Hand tracking stopped.")
 
 if __name__ == "__main__":
@@ -324,4 +289,4 @@ if __name__ == "__main__":
     try:
         robot.run()
     except KeyboardInterrupt:
-        robot.cleanup() 
+        print("Hand tracking stopped.") 
