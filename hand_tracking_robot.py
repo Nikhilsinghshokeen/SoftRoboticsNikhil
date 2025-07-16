@@ -151,6 +151,21 @@ class HandTrackingRobot:
         print('Joint Angles:', angles)
         
         return distances, lm_list
+#changes to the camera to make it more robust for the hand tracking
+    def preprocess_frame(self, frame):
+        # Convert to YCrCb to reduce lighting effects
+        ycrcb = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        # Histogram equalization on the Y channel
+        ycrcb[:,:,0] = cv2.equalizeHist(ycrcb[:,:,0])
+        frame_eq = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2BGR)
+        # Optionally, apply CLAHE for local contrast
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        lab = cv2.cvtColor(frame_eq, cv2.COLOR_BGR2LAB)
+        lab[:,:,0] = clahe.apply(lab[:,:,0])
+        frame_clahe = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+        # Optionally, blur to reduce bloom
+        frame_blur = cv2.GaussianBlur(frame_clahe, (3,3), 0)
+        return frame_blur
 
     def map_distance_to_servo(self, distance, min_dist=30, max_dist=150):
         servo_angle = np.interp(distance, [min_dist, max_dist], [0, 180])
@@ -161,31 +176,20 @@ class HandTrackingRobot:
         # (identity if in range, but clamps if out of range)
         return int(np.clip(angle, min_angle, max_angle))
 
-    def send_to_arduino(self, angles):
+    def send_to_arduino(self, finger_angles):
         if not self.arduino_connected or not self.arduino:
             return
-
         current_time = time.time()
         if current_time - self.last_send_time < self.send_interval:
             return
-
         try:
-            # Map MCP angles to servo range (0-180) with expanded input ranges
-            # This will make all motors move more responsively
-            thumb_mcp = int(np.interp(angles['thumb']['MCP'], [100, 180], [0, 180])) if 'thumb' in angles and 'MCP' in angles['thumb'] else 90
-            index_mcp = int(np.interp(angles['index']['MCP'], [120, 180], [0, 180])) if 'index' in angles and 'MCP' in angles['index'] else 90
-            middle_mcp = int(np.interp(angles['middle']['MCP'], [80, 180], [0, 180])) if 'middle' in angles and 'MCP' in angles['middle'] else 90
-            ring_mcp = int(np.interp(angles['ring']['MCP'], [100, 180], [0, 180])) if 'ring' in angles and 'MCP' in angles['ring'] else 90
-            pinky_mcp = int(np.interp(angles['pinky']['MCP'], [100, 180], [0, 180])) if 'pinky' in angles and 'MCP' in angles['pinky'] else 90
-            
-            # Clamp values to servo range
-            thumb_mcp = np.clip(thumb_mcp, 0, 180)
-            index_mcp = np.clip(index_mcp, 0, 180)
-            middle_mcp = np.clip(middle_mcp, 0, 180)
-            ring_mcp = np.clip(ring_mcp, 0, 180)
-            pinky_mcp = np.clip(pinky_mcp, 0, 180)
-            
-            data = f"T:{thumb_mcp} I:{index_mcp} M:{middle_mcp} R:{ring_mcp} P:{pinky_mcp}\n"
+            # Map the weighted finger angle to servo range (0-180)
+            thumb = int(np.interp(finger_angles['thumb'], [100, 180], [0, 180]))
+            index = int(np.interp(finger_angles['index'], [80, 180], [0, 180]))
+            middle = int(np.interp(finger_angles['middle'], [80, 180], [0, 180]))
+            ring = int(np.interp(finger_angles['ring'], [40, 180], [0, 180]))
+            pinky = int(np.interp(finger_angles['pinky'], [30, 180], [0, 180]))
+            data = f"T:{thumb} I:{index} M:{middle} R:{ring} P:{pinky}\n"
             self.arduino.write(data.encode())
             self.arduino.flush()
             self.last_send_time = current_time
@@ -221,20 +225,17 @@ class HandTrackingRobot:
         if not self.cap or not self.cap.isOpened():
             print("Error: Camera not available")
             return
-        
         self.running = True
         print("Hand tracking started. Press 'q' to quit.")
-        
         while self.running:
             success, frame = self.cap.read()
             if not success:
                 print("Failed to read frame, retrying...")
                 time.sleep(0.1)
                 continue
-            
+            frame = self.preprocess_frame(frame)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = self.hands.process(frame_rgb)
-            
             if results.multi_hand_landmarks:
                 for hand_landmarks in results.multi_hand_landmarks:
                     distances, lm_list = self.get_hand_gesture(hand_landmarks, frame.shape)
@@ -266,20 +267,30 @@ class HandTrackingRobot:
                                 'DIP': self.calculate_angle(lm_list[18], lm_list[19], lm_list[20])
                             }
                         }
-                        # Draw MediaPipe landmarks and connections
+                        # Weighted sum for each finger (more realistic curl)
+                        finger_angles = {}
+                        for finger in angles:
+                            # Weights: MCP=0.5, PIP=0.3, DIP=0.2 (tune as needed)
+                            if finger == 'thumb':
+                                mcp = angles[finger].get('MCP', 0)
+                                ip = angles[finger].get('IP', 0)
+                                finger_angles[finger] = 0.6 * mcp + 0.4 * ip
+                            else:
+                                mcp = angles[finger].get('MCP', 0)
+                                pip = angles[finger].get('PIP', 0)
+                                dip = angles[finger].get('DIP', 0)
+                                finger_angles[finger] = 0.5 * mcp + 0.3 * pip + 0.2 * dip
                         self.mp_drawing.draw_landmarks(
                             frame,
                             hand_landmarks,
                             self.mp_hands.HAND_CONNECTIONS
                         )
-                        self.draw_hand_info(frame, distances, None, lm_list, angles)
-                        self.send_to_arduino(angles)
-            
+                        self.draw_hand_info(frame, distances, finger_angles, lm_list, angles)
+                        self.send_to_arduino(finger_angles)
             cv2.imshow('Hand Tracking Robot', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 self.running = False
                 break
-        
         self.cap.release()
         cv2.destroyAllWindows()
         print("Hand tracking stopped.")
