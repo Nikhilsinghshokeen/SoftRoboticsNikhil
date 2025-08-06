@@ -3,7 +3,7 @@
 This research uses a visual pipeline with MediaPipe and OpenCV to control a soft hand gripper. The goal is to create a controlled soft robotics hand that responds to hand movement that can be replicated easily. Further implications on the hand include using it as an attachment for a KINOVA robotic hand.
 
 **Made by Nikhil Shokeen @ Worcester Polytechnic Institute Soft Robotics Lab (WPI)**  
-**Mentor: Neehaal Sharrma**
+**Mentor: Neehal Sharrma**
 
 ## Table of Contents
 - [Hardware Requirements](#hardware-requirements)
