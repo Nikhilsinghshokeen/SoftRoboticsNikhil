@@ -1,96 +1,70 @@
-#include <Servo.h>
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
 
-Servo thumbServo;
-Servo indexServo;
-Servo middleServo;
-Servo ringServo;
-Servo pinkyServo;
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-const int THUMB_PIN = 9;
-const int INDEX_PIN = 10;
-const int MIDDLE_PIN = 11;
-const int RING_PIN = 12;
-const int PINKY_PIN = 13;
+const int servoMin = 150; // Adjust as needed for your motors
+const int servoMax = 600; // Adjust as needed for your motors
 
-int thumbAngle = 90;
-int indexAngle = 90;
-int middleAngle = 90;
-int ringAngle = 90;
-int pinkyAngle = 90;
-
-String inputString = "";
-boolean stringComplete = false;
+// MCP angle ranges for each finger
+const int thumbMin = 120, thumbMax = 180;
+const int indexMin = 160, indexMax = 180;
+const int middleMin = 160, middleMax = 180;
+const int ringMin = 160, ringMax = 180;
+const int pinkyMin = 160, pinkyMax = 180;
 
 void setup() {
   Serial.begin(115200);
-  
-  thumbServo.attach(THUMB_PIN);
-  indexServo.attach(INDEX_PIN);
-  middleServo.attach(MIDDLE_PIN);
-  ringServo.attach(RING_PIN);
-  pinkyServo.attach(PINKY_PIN);
-  
-  thumbServo.write(thumbAngle);
-  indexServo.write(indexAngle);
-  middleServo.write(middleAngle);
-  ringServo.write(ringAngle);
-  pinkyServo.write(pinkyAngle);
-  
-  delay(1000);
-  
-  Serial.println("Robot hand ready");
+  pwm.begin();
+  pwm.setPWMFreq(50); // Standard servo frequency
+  Wire.setClock(400000); // Optional: speed up I2C
 }
 
 void loop() {
-  if (stringComplete) {
-    parseCommand(inputString);
-    inputString = "";
-    stringComplete = false;
-  }
-}
+  if (Serial.available()) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
 
-void serialEvent() {
-  while (Serial.available()) {
-    char inChar = (char)Serial.read();
-    inputString += inChar;
-    if (inChar == '\n') {
-      stringComplete = true;
+    int t = -1, i = -1, m = -1, r = -1, p = -1;
+
+    // Parse the angles from the input string
+    int tIdx = input.indexOf("T:");
+    int iIdx = input.indexOf("I:");
+    int mIdx = input.indexOf("M:");
+    int rIdx = input.indexOf("R:");
+    int pIdx = input.indexOf("P:");
+
+    if (tIdx != -1) t = input.substring(tIdx + 2, input.indexOf(' ', tIdx + 2)).toInt();
+    if (iIdx != -1) i = input.substring(iIdx + 2, input.indexOf(' ', iIdx + 2)).toInt();
+    if (mIdx != -1) m = input.substring(mIdx + 2, input.indexOf(' ', mIdx + 2)).toInt();
+    if (rIdx != -1) r = input.substring(rIdx + 2, input.indexOf(' ', rIdx + 2)).toInt();
+    if (pIdx != -1) p = input.substring(pIdx + 2).toInt();
+
+    // Map and set PWM for each servo if value is valid
+    if (t != -1) {
+      int pulse = map(t, thumbMin, thumbMax, servoMin, servoMax);
+      pulse = constrain(pulse, servoMin, servoMax);
+      pwm.setPWM(0, 0, pulse);
     }
-  }
-}
-
-void parseCommand(String command) {
-  command.trim();
-  
-  if (command.startsWith("T:") && command.indexOf("I:") > 0) {
-    int tStart = command.indexOf("T:") + 2;
-    int tEnd = command.indexOf(",I:");
-    int iStart = command.indexOf("I:") + 2;
-    int iEnd = command.indexOf(",M:");
-    int mStart = command.indexOf("M:") + 2;
-    int mEnd = command.indexOf(",R:");
-    int rStart = command.indexOf("R:") + 2;
-    int rEnd = command.indexOf(",P:");
-    int pStart = command.indexOf("P:") + 2;
-    
-    if (tEnd > 0 && iEnd > 0 && mEnd > 0 && rEnd > 0) {
-      thumbAngle = command.substring(tStart, tEnd).toInt();
-      indexAngle = command.substring(iStart, iEnd).toInt();
-      middleAngle = command.substring(mStart, mEnd).toInt();
-      ringAngle = command.substring(rStart, rEnd).toInt();
-      pinkyAngle = command.substring(pStart).toInt();
-      
-      thumbAngle = constrain(thumbAngle, 0, 180);
-      indexAngle = constrain(indexAngle, 0, 180);
-      middleAngle = constrain(middleAngle, 0, 180);
-      ringAngle = constrain(ringAngle, 0, 180);
-      pinkyAngle = constrain(pinkyAngle, 0, 180);
-      
-      thumbServo.write(thumbAngle);
-      indexServo.write(indexAngle);
-      middleServo.write(middleAngle);
-      ringServo.write(ringAngle);
-      pinkyServo.write(pinkyAngle);
+    if (i != -1) {
+      int pulse = map(i, indexMin, indexMax, servoMin, servoMax);
+      pulse = constrain(pulse, servoMin, servoMax);
+      pwm.setPWM(1, 0, pulse);
+    }
+    if (m != -1) {
+      int pulse = map(m, middleMin, middleMax, servoMin, servoMax);
+      pulse = constrain(pulse, servoMin, servoMax);
+      pwm.setPWM(2, 0, pulse);
+    }
+    if (r != -1) {
+      int pulse = map(r, ringMin, ringMax, servoMin, servoMax);
+      pulse = constrain(pulse, servoMin, servoMax);
+      pwm.setPWM(3, 0, pulse);
+    }
+    if (p != -1) {
+      int pulse = map(p, pinkyMin, pinkyMax, servoMin, servoMax);
+      pulse = constrain(pulse, servoMin, servoMax);
+      pwm.setPWM(4, 0, pulse);
     }
   }
 } 
