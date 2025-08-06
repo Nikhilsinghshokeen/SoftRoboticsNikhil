@@ -1,3 +1,6 @@
+//Code for Anthropogenic Soft Robotic Hand, visual pipeline to control hand using arduino
+//Copyright (C) 2025  Nikhil Shokeen
+
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
