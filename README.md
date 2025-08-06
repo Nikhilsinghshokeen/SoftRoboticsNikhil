@@ -23,7 +23,12 @@ This research uses a visual pipeline with MediaPipe and OpenCV to control a soft
    cd MediaPipeWPI
    ```
 
-2. **Install Python dependencies**
+2. **Initialize submodules and setup**
+   ```bash
+   ./setup.sh
+   ```
+
+3. **Install Python dependencies**
    ```bash
    pip install -r requirements.txt
    ```
@@ -39,12 +44,18 @@ This research uses a visual pipeline with MediaPipe and OpenCV to control a soft
 
 ## Documentation
 
-For detailed setup instructions, troubleshooting, and technical documentation, visit our **[Wiki](https://github.com/yourusername/MediaPipeWPI/wiki)**:
+For detailed setup instructions, troubleshooting, and technical documentation, check the **wiki/** directory (included as a git submodule):
 
-- [Hardware Setup Guide](https://github.com/yourusername/MediaPipeWPI/wiki/Hardware-Setup)
-- [Software Installation](https://github.com/yourusername/MediaPipeWPI/wiki/Software-Installation)
-- [Troubleshooting Guide](https://github.com/yourusername/MediaPipeWPI/wiki/Troubleshooting)
-- [Technical Specifications](https://github.com/yourusername/MediaPipeWPI/wiki/Technical-Specifications)
+- [Hardware Setup Guide](wiki/Hardware-Setup.md)
+- [Software Installation](wiki/Software-Installation.md)
+- [Troubleshooting Guide](wiki/Troubleshooting.md)
+- [Technical Specifications](wiki/Technical-Specifications.md)
+
+**Note**: The wiki is included as a git submodule. Run `./setup.sh` to initialize it, or manually run:
+```bash
+git submodule init
+git submodule update
+```
 
 ## Project Structure
 ```
@@ -53,6 +64,13 @@ MediaPipeWPI/
 ├── test_camera.py              # Camera testing utility
 ├── arduino_servo_control.ino   # Arduino servo control code
 ├── requirements.txt            # Python dependencies
+├── setup.sh                    # Setup script for submodules
+├── wiki/                       # Documentation (git submodule)
+│   ├── Home.md                 # Wiki index
+│   ├── Hardware-Setup.md       # Hardware assembly guide
+│   ├── Software-Installation.md # Software setup guide
+│   ├── Troubleshooting.md      # Common issues and solutions
+│   └── Technical-Specifications.md # Technical details
 └── README.md                   # This file
 ```
 
