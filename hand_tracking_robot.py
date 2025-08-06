@@ -1,3 +1,5 @@
+#Code for Anthropogenic Soft Robotic Hand, visual pipeline to control hand using arduino
+#Copyright (C) 2025  Nikhil Shokeen
 import cv2
 import mediapipe as mp
 import numpy as np
