@@ -2,8 +2,8 @@
 
 This research uses a visual pipeline with MediaPipe and OpenCV to control a soft hand gripper.
 
-**Made by Nikhil Shokeen @ Worcester Polytechnic Institute (WPI)**  
-**Mentor: Neehaal Sharrma**
+**Made by Nikhil Shokeen @ Worcester Polytechnic Institute Soft Robotics Lab (WPI)**  
+**Mentor: Neehal Sharrma**
 
 ![Pipeline](Pipeline.png)
 
@@ -44,5 +44,17 @@ This research uses a visual pipeline with MediaPipe and OpenCV to control a soft
 4. Submit pull request
 
 ## License
-WPI Robotics Engineering Department research project.
+This project is developed at Worcester Polytechnic Institute (WPI) for research purposes.
+
+## Acknowledgments
+- **MediaPipe** team for hand tracking technology
+- **Adafruit** for PWM servo driver library
+- **OpenCV** community for computer vision tools
+- **WPI Robotics Engineering Department**
+
+---
+
+**For technical support or questions, please contact:**
+- **Nikhil Shokeen** - [shokeen24nikhil@gmail.com]
+- **WPI Soft Robotics Lab**
 
