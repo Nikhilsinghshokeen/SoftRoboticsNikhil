@@ -28,6 +28,8 @@ This research uses a visual pipeline with MediaPipe and OpenCV to control a soft
 - [Troubleshooting](wiki/Troubleshooting.md)
 - [Technical Specs](wiki/Technical-Specifications.md)
 
+> **Note**: After cloning, run `./setup.sh` to initialize the wiki documentation submodule.
+
 ## Project Structure
 ```
 ├── hand_tracking_robot.py      # Main application
